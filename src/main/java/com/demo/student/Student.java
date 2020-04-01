@@ -1,5 +1,7 @@
 package com.demo.student;
 
+import java.text.MessageFormat;
+
 public class Student {
     private final Integer studentId;
     private final String name;
@@ -16,5 +18,13 @@ public class Student {
 
     public String getName() {
         return name;
+    }
+
+    @Override
+    public String toString() {
+        return "Student{" +
+                "studentId=" + studentId +
+                ", name='" + name + '\'' +
+                '}';
     }
 }
