@@ -46,22 +46,26 @@ public class ApplicationSecurityConfig extends WebSecurityConfigurerAdapter {
                 .anyRequest()
                 .authenticated()
                 .and()
-                .formLogin()
                 //                .httpBasic();
-                .loginPage("/login").permitAll()
-                .defaultSuccessUrl("/courses", true)
+                .formLogin()
+                    .loginPage("/login")
+                    .permitAll()
+                    .defaultSuccessUrl("/courses", true)
+                    .passwordParameter("password")
+                    .usernameParameter("username")
                 .and()
                 .rememberMe()
-                .tokenValiditySeconds((int) TimeUnit.DAYS.toSeconds(21)) // 21 days session
-                .key("somethingverysecured") // hashing key
+                    .tokenValiditySeconds((int) TimeUnit.DAYS.toSeconds(21)) // 21 days session
+                    .key("somethingverysecured") // hashing key
+                    .rememberMeParameter("remember-me")
                 .and()
                 .logout()
-                .logoutUrl("/logout")
-                .logoutRequestMatcher(new AntPathRequestMatcher("/logout", "GET"))
-                .clearAuthentication(true)
-                .invalidateHttpSession(true)
-                .deleteCookies("JSESSIONID", "remember-me")
-                .logoutSuccessUrl("/login");
+                    .logoutUrl("/logout")
+                    .logoutRequestMatcher(new AntPathRequestMatcher("/logout", "GET"))
+                    .clearAuthentication(true)
+                    .invalidateHttpSession(true)
+                    .deleteCookies("JSESSIONID", "remember-me")
+                    .logoutSuccessUrl("/login");
     }
 
     @Override
