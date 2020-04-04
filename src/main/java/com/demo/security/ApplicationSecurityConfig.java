@@ -1,22 +1,24 @@
 package com.demo.security;
 
+import com.demo.auth.ApplicationUserService;
+import com.demo.jwt.JwtConfig;
+import com.demo.jwt.JwtTokenVerifier;
+import com.demo.jwt.JwtUsernameAndPasswordAuthenticationFilter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
-import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 
-import java.util.concurrent.TimeUnit;
+import javax.crypto.SecretKey;
 
-import static com.demo.security.ApplicationUserRole.*;
+import static com.demo.security.ApplicationUserRole.STUDENT;
 
 @Configuration
 @EnableWebSecurity
@@ -24,10 +26,19 @@ import static com.demo.security.ApplicationUserRole.*;
 public class ApplicationSecurityConfig extends WebSecurityConfigurerAdapter {
 
     private final PasswordEncoder passwordEncoder;
+    private final ApplicationUserService applicationUserService;
+    private final SecretKey secretKey;
+    private final JwtConfig jwtConfig;
 
     @Autowired
-    public ApplicationSecurityConfig(PasswordEncoder passwordEncoder) {
+    public ApplicationSecurityConfig(PasswordEncoder passwordEncoder,
+                                     ApplicationUserService applicationUserService,
+                                     SecretKey secretKey,
+                                     JwtConfig jwtConfig) {
         this.passwordEncoder = passwordEncoder;
+        this.applicationUserService = applicationUserService;
+        this.secretKey = secretKey;
+        this.jwtConfig = jwtConfig;
     }
 
     @Override
@@ -36,6 +47,11 @@ public class ApplicationSecurityConfig extends WebSecurityConfigurerAdapter {
 //                .csrf().csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
 //                .and()
                 .csrf().disable()
+                .sessionManagement()
+                .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                .and()
+                .addFilter(new JwtUsernameAndPasswordAuthenticationFilter(authenticationManager(), jwtConfig, secretKey))
+                .addFilterAfter(new JwtTokenVerifier(secretKey, jwtConfig), JwtUsernameAndPasswordAuthenticationFilter.class)
                 .authorizeRequests()
                 .antMatchers("/", "index", "/css/*", "/js/*").permitAll()
                 .antMatchers("/api/**").hasRole(STUDENT.name())
@@ -44,53 +60,70 @@ public class ApplicationSecurityConfig extends WebSecurityConfigurerAdapter {
 //                .antMatchers(HttpMethod.PUT,"/management/api/**").hasAuthority(COURSE_WRITE.getPermission())
 //                .antMatchers(HttpMethod.GET,"/management/api/**").hasAnyRole(ADMIN.name(),ADMINTRAINEE.name())
                 .anyRequest()
-                .authenticated()
-                .and()
-                .formLogin()
-                //                .httpBasic();
-                .loginPage("/login").permitAll()
-                .defaultSuccessUrl("/courses", true)
-                .and()
-                .rememberMe()
-                .tokenValiditySeconds((int) TimeUnit.DAYS.toSeconds(21)) // 21 days session
-                .key("somethingverysecured") // hashing key
-                .and()
-                .logout()
-                .logoutUrl("/logout")
-                .logoutRequestMatcher(new AntPathRequestMatcher("/logout", "GET"))
-                .clearAuthentication(true)
-                .invalidateHttpSession(true)
-                .deleteCookies("JSESSIONID", "remember-me")
-                .logoutSuccessUrl("/login");
+                .authenticated();
+//                .and()
+        ////                .httpBasic();
+//                .formLogin()
+//                    .loginPage("/login")
+//                    .permitAll()
+//                    .defaultSuccessUrl("/courses", true)
+//                    .passwordParameter("password")
+//                    .usernameParameter("username")
+//                .and()
+//                .rememberMe()
+//                    .tokenValiditySeconds((int) TimeUnit.DAYS.toSeconds(21)) // 21 days session
+//                    .key("somethingverysecured") // hashing key
+//                    .rememberMeParameter("remember-me")
+//                .and()
+//                .logout()
+//                    .logoutUrl("/logout")
+//                    .logoutRequestMatcher(new AntPathRequestMatcher("/logout", "GET"))
+//                    .clearAuthentication(true)
+//                    .invalidateHttpSession(true)
+//                    .deleteCookies("JSESSIONID", "remember-me")
+//                    .logoutSuccessUrl("/login");
     }
 
     @Override
-    @Bean
-    protected UserDetailsService userDetailsService() {
-        UserDetails annaSmithUser = User.builder()
-                .username("annasmith")
-                .password(passwordEncoder.encode("password"))
-//                .roles(STUDENT.name()) // ROLE_STUDENT
-                .authorities(STUDENT.getGrantedAuthorities())
-                .build();
-
-        UserDetails lindaUser = User.builder()
-                .username("linda")
-                .password(passwordEncoder.encode("password123"))
-//                .roles(ADMIN.name()) // ROLE_ADMIN
-                .authorities(ADMIN.getGrantedAuthorities())
-                .build();
-        UserDetails tomUser = User.builder()
-                .username("tom")
-                .password(passwordEncoder.encode("password123"))
-//                .roles(ADMINTRAINEE.name()) // ROLE_ADMINTRAINEE
-                .authorities(ADMINTRAINEE.getGrantedAuthorities())
-                .build();
-
-        return new InMemoryUserDetailsManager(
-                annaSmithUser,
-                lindaUser,
-                tomUser
-        );
+    protected void configure(AuthenticationManagerBuilder auth) throws Exception {
+        auth.authenticationProvider(daoAuthenticationProvider());
     }
+
+    @Bean
+    public DaoAuthenticationProvider daoAuthenticationProvider() {
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+        provider.setPasswordEncoder(passwordEncoder);
+        provider.setUserDetailsService(applicationUserService);
+        return provider;
+    }
+
+//    @Override
+//    @Bean
+//    protected UserDetailsService userDetailsService() {
+//        UserDetails annaSmithUser = User.builder()
+//                .username("annasmith")
+//                .password(passwordEncoder.encode("password"))
+////                .roles(STUDENT.name()) // ROLE_STUDENT
+//                .authorities(STUDENT.getGrantedAuthorities())
+//                .build();
+//
+//        UserDetails lindaUser = User.builder()
+//                .username("linda")
+//                .password(passwordEncoder.encode("password123"))
+////                .roles(ADMIN.name()) // ROLE_ADMIN
+//                .authorities(ADMIN.getGrantedAuthorities())
+//                .build();
+//        UserDetails tomUser = User.builder()
+//                .username("tom")
+//                .password(passwordEncoder.encode("password123"))
+////                .roles(ADMINTRAINEE.name()) // ROLE_ADMINTRAINEE
+//                .authorities(ADMINTRAINEE.getGrantedAuthorities())
+//                .build();
+//
+//        return new InMemoryUserDetailsManager(
+//                annaSmithUser,
+//                lindaUser,
+//                tomUser
+//        );
+//    }
 }
